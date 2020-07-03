@@ -1,0 +1,52 @@
+# Windows default autosave extension
+*.asv
+*.tmp
+~*
+
+# OSX / *nix default autosave extension
+*.m~
+
+# Compiled MEX binaries (all platforms)
+*.mex*
+
+# Packaged app and toolbox files
+*.mlappinstall
+*.mltbx
+
+# Generated helpsearch folders
+helpsearch*/
+
+# Simulink code generation folders
+slprj/
+sccprj/
+
+# Matlab code generation folders
+codegen/
+
+# Simulink autosave extension
+*.autosave
+
+# Simulink cache files
+*.slxc
+
+# Octave session info
+octave-workspace
+
+# Data and rawdata
+data/
+rawdata/
+results/
+pilot/
+oASRtoolbox/
+rASRtoolbox/
+manopt-master/
+
+# EEGLAB output
+*.set
+*.set.icaspec
+*.set.icaersp
+*.icaspec
+*.icaersp
+*.fdt
+*.mat
+*.spl
