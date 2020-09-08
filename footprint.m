@@ -49,14 +49,14 @@ function [feature, tfstand, tfwalk, EEGwalkEP, AccEP] = footprint(EEGstand, EEGw
 % EEGLAB datasets
 eeg_checkset(EEGstand);
 eeg_checkset(EEGwalk);
-eeg_checkset(Acc),
+eeg_checkset(Acc);
 
 % same number of channels
 if ~(EEGstand.nbchan == EEGwalk.nbchan)
     error('Standing and walking EEG do not have the same number of channels'); end
 
 % same number of points
-if ~(Acc.pntsn == EEGwalk.pnts)
+if ~(Acc.pnts == EEGwalk.pnts)
     error('Walking EEG and head acceleration do not have the same number of samples'); end
 
 % params: all fields thete (fild themselves will be checked during feature
@@ -118,7 +118,7 @@ ACC = mean(AccEP.data([1:3],:,:),3);
 TFdata = squeeze(tfwalk);
 TFbaseline = tfstand;
 
-% A) R² gfp rms (head acc) -------------------------------------
+% A) RÂ² gfp rms (head acc) -------------------------------------
 feature(1) = RgfpHeadAcc(ERP, ACC);
 
 % B) power ratio lateral/all channels -------------------------
@@ -135,101 +135,102 @@ feature(5) = neckChanRatio(TFdata, TFbaseline, params.E.neckChanL, params.E.neck
 
 % F) 1-S/W power ratio --------------------------------------
 feature(6) = swRatio(TFdata, TFbaseline);
-end
--------------------------------------------------------------------------
--------------------------------------------------------------------------
-function [EEGEP, latGaitEV] = epoch_gait(EEG, params)
-% epoch around params.EV and store latencies of allgaitEV for later warping
-% no input check!
 
-% epoch ___________________________________________________________
-EEGEP = pop_epoch(EEG, params.EV, params.EP,  'epochinfo', 'yes');
-% numEpochsGait.numCycle(s) = EEGwalk.trials;
-
-
-% only keep valid gait cycles _____________________________________
-% get gait event latencies (ms)
-latGaitEV = zeros(EEGEP.trials, length(params.allGaitEV));
-for i = 1:length(params.allGaitEV)-1
-    evalc('latGaitEV(:,i+1) = eeg_getepochevent(EEGEP ,params.allGaitEV(i), params.RESPONSEtime, ''latency'')');
-end
-
-% flag epochs w/o all events
-% contain nans
-rmEp1 =any(isnan(latGaitEV),2);
-
-% and events in wrong order
-% negtive difference between events
-rmEp2 = any(diff(latGaitEV,[],2)<0,2);
-
-% reject flagged epochs
-EEGEP = pop_select(EEGEP, 'notrial', find(rmEp1+rmEp2));
-
-latGaitEV = latGaitEV(~(rmEp1+rmEp2),:);
-end
-
-function EEGwarped  = warp_ERP(EEG, EEGEP, latGaitEV, params)
-% extract epochs from continous data and warp all trials to same length (params.newLatpnts) using events of
-% params.allGaitEV
-% no input check!
-
-% create new EEGlab structure w/correct size
-evalc('EEGwarped = pop_resample(EEGEP, 100)');
-evalc('EEGwarped = pop_select(EEGwarped, ''time'', [0 1])');
-
-% time-warp (EEG and accelerometer) -> ERP
-oldLat = round(EEG.srate/1000*latGaitEV);       % convert latencies from ms to pnts (for newtimef)
-oldLat(:,1) = 1;                                % 1st latency cant be 0, has to be 1
-from        = find(EEG.times == 0);
-
-% ERP _________________________________________
-% warping (resampling is quicker and would work for regular striges, e.g. treadmill)
-for e = 1:size(EEG.data,3)                      % loop through all epochs
-    LAT = oldLat(e,end);                        % get next RHS
-    warpmat = timewarp(oldLat(e,:), params.newLatpnts);    % get warping matrix
-    for ch = 1:size(EEG.data,1)                 % loop through channels
-        data = squeeze(EEG.data(ch, from:from+LAT-1,e))'; % get data from each epoch
-        EEGwarped.data(ch,:,e) = warpmat*data;     % warp data
+% -------------------------------------------------------------------------
+% -------------------------------------------------------------------------
+    function [EEGEP, latGaitEV] = epoch_gait(EEG, params)
+        % epoch around params.EV and store latencies of allgaitEV for later warping
+        % no input check!
+        
+        % epoch ___________________________________________________________
+        EEGEP = pop_epoch(EEG, params.EV, params.EP,  'epochinfo', 'yes');
+        % numEpochsGait.numCycle(s) = EEGwalk.trials;
+        
+        
+        % only keep valid gait cycles _____________________________________
+        % get gait event latencies (ms)
+        latGaitEV = zeros(EEGEP.trials, length(params.allGaitEV));
+        for i = 1:length(params.allGaitEV)-1
+            evalc('latGaitEV(:,i+1) = eeg_getepochevent(EEGEP ,params.allGaitEV(i), params.RESPONSEtime, ''latency'')');
+        end
+        
+        % flag epochs w/o all events
+        % contain nans
+        rmEp1 =any(isnan(latGaitEV),2);
+        
+        % and events in wrong order
+        % negtive difference between events
+        rmEp2 = any(diff(latGaitEV,[],2)<0,2);
+        
+        % reject flagged epochs
+        EEGEP = pop_select(EEGEP, 'notrial', find(rmEp1+rmEp2));
+        
+        latGaitEV = latGaitEV(~(rmEp1+rmEp2),:);
     end
-end
-%         EEG         = pop_resample(EEG, 100); % prepare structure to store data
-%         EEG = pop_select(EEG, 'time', [0,1]);
-%         EEG.data = warped_data;
-%         pop_saveset(EEG, [FILES(s).name(1:11) '_warpedGaitEpochs_' CONDS{c}], PATHOUTtmp);
 
-end
+    function EEGwarped  = warp_ERP(EEG, EEGEP, latGaitEV, params)
+        % extract epochs from continous data and warp all trials to same length (params.newLatpnts) using events of
+        % params.allGaitEV
+        % no input check!
+        
+        % create new EEGlab structure w/correct size
+        evalc('EEGwarped = pop_resample(EEGEP, 100)');
+        evalc('EEGwarped = pop_select(EEGwarped, ''time'', [0 1])');
+        
+        % time-warp (EEG and accelerometer) -> ERP
+        oldLat = round(EEG.srate/1000*latGaitEV);       % convert latencies from ms to pnts (for newtimef)
+        oldLat(:,1) = 1;                                % 1st latency cant be 0, has to be 1
+        from        = find(EEG.times == 0);
+        
+        % ERP _________________________________________
+        % warping (resampling is quicker and would work for regular striges, e.g. treadmill)
+        for e = 1:size(EEG.data,3)                      % loop through all epochs
+            LAT = oldLat(e,end);                        % get next RHS
+            warpmat = timewarp(oldLat(e,:), params.newLatpnts);    % get warping matrix
+            for ch = 1:size(EEG.data,1)                 % loop through channels
+                data = squeeze(EEG.data(ch, from:from+LAT-1,e))'; % get data from each epoch
+                EEGwarped.data(ch,:,e) = warpmat*data;     % warp data
+            end
+        end
+        %         EEG         = pop_resample(EEG, 100); % prepare structure to store data
+        %         EEG = pop_select(EEG, 'time', [0,1]);
+        %         EEG.data = warped_data;
+        %         pop_saveset(EEG, [FILES(s).name(1:11) '_warpedGaitEpochs_' CONDS{c}], PATHOUTtmp);
+        
+    end
 
-function [tfstand, tfwalk, times, freqs] = gaitERSP(EEGstand, EEGEP, latGaitEV, params)
-% time-frequency decompose standing baselinge and gait epochs using newtimef
-% no input check!
-latGaitEV(:,1) = 0;
-disp(['Starting time-frequency decomposition of ' num2str(EEGstand.nbchan), ' channels'])
-for ch = 1:EEGstand.nbchan % loop through all channels
-    
-    % get TF of standing baseline
-    [~, ~, ~, ~, ~, ~, ~, tfdatab] = newtimef...
-        (EEGstand.data(ch,:), EEGstand.pnts, [EEGstand.xmin EEGstand.xmax]*1000, EEGstand.srate,...
-        'cycles', params.newtimef.cycles,...
-        'wletmethod',params.newtimef.wletmethod,...
-        'timesout', params.newtimef.timesout, ...
-        'freqs',params.newtimef.freqs,...
-        'nfreqs', params.newtimef.nfreqs, ...
-        'plotitc', 'off', 'plotersp', 'off');
-    tfstand(ch,:) = squeeze(mean(abs(tfdatab).^2,2)); %store mean time
-    
-    % TF and warp all gait cycles
-    [~, ~, ~, ~, ~, ~, ~, tfdata] = newtimef(EEGEP.data(ch,:,:),...
-        EEGEP.pnts, [EEGEP.xmin EEGEP.xmax]*1000, EEGEP.srate,...
-        'cycles', params.newtimef.cycles,...
-        'wletmethod',params.newtimef.wletmethod,...
-        'timesout', params.newtimef.timesout, ...
-        'freqs',params.newtimef.freqs,...
-        'nfreqs', params.newtimef.nfreqs, ...
-        'timewarp', latGaitEV,...
-        'timewarpms', params.newLatms, ...
-        'plotitc', 'off', 'plotersp', 'off'); % add 'alpha', 0.05, to show thresholded map, 'baseline',[EEG.xmax],
-    
-    % store
-    tfwalk(ch,:,1,:) = mean(abs(tfdata).^2,3);
-end
+    function [tfstand, tfwalk, times, freqs] = gaitERSP(EEGstand, EEGEP, latGaitEV, params)
+        % time-frequency decompose standing baselinge and gait epochs using newtimef
+        % no input check!
+        latGaitEV(:,1) = 0;
+        disp(['Starting time-frequency decomposition of ' num2str(EEGstand.nbchan), ' channels'])
+        for ch = 1:EEGstand.nbchan % loop through all channels
+            
+            % get TF of standing baseline
+            [~, ~, ~, ~, ~, ~, ~, tfdatab] = newtimef...
+                (EEGstand.data(ch,:), EEGstand.pnts, [EEGstand.xmin EEGstand.xmax]*1000, EEGstand.srate,...
+                'cycles', params.newtimef.cycles,...
+                'wletmethod',params.newtimef.wletmethod,...
+                'timesout', params.newtimef.timesout, ...
+                'freqs',params.newtimef.freqs,...
+                'nfreqs', params.newtimef.nfreqs, ...
+                'plotitc', 'off', 'plotersp', 'off');
+            tfstand(ch,:) = squeeze(mean(abs(tfdatab).^2,2)); %store mean time
+            
+            % TF and warp all gait cycles
+            [~, ~, ~, ~, ~, ~, ~, tfdata] = newtimef(EEGEP.data(ch,:,:),...
+                EEGEP.pnts, [EEGEP.xmin EEGEP.xmax]*1000, EEGEP.srate,...
+                'cycles', params.newtimef.cycles,...
+                'wletmethod',params.newtimef.wletmethod,...
+                'timesout', params.newtimef.timesout, ...
+                'freqs',params.newtimef.freqs,...
+                'nfreqs', params.newtimef.nfreqs, ...
+                'timewarp', latGaitEV,...
+                'timewarpms', params.newLatms, ...
+                'plotitc', 'off', 'plotersp', 'off'); % add 'alpha', 0.05, to show thresholded map, 'baseline',[EEG.xmax],
+            
+            % store
+            tfwalk(ch,:,1,:) = mean(abs(tfdata).^2,3);
+        end
+    end
 end
